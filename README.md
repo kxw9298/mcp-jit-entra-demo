@@ -101,8 +101,8 @@ scripts/create-entra-app.sh
 source .env
 az login --tenant "$ENTRA_TENANT_ID" --scope "api://$ENTRA_CLIENT_ID/mcp.access" --allow-no-subscriptions
 
-# 3. Run the server
-docker compose up -d --build
+# 3. Build the image and start the container (writes .env on first run if you skipped step 1)
+scripts/up.sh            # or: scripts/up.sh <tenant-id> <client-id>
 scripts/smoke-test.sh
 
 # 4. Start Claude Code with a fresh token
