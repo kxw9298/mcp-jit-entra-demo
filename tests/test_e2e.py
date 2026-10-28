@@ -72,7 +72,7 @@ async def test_no_token_gets_401_with_resource_metadata(server):
 
         prm = (await http.get(f"{server.base}/.well-known/oauth-protected-resource/mcp")).json()
         assert prm["resource"] == f"{server.base}/mcp"
-        assert prm["authorization_servers"] == [f"{server.entra.authority}/{TENANT}/v2.0"]
+        assert prm["authorization_servers"] == [server.base]  # this server proxies sign-in to Entra
         assert prm["scopes_supported"] == [f"{APP_ID_URI}/mcp.access"]
 
 

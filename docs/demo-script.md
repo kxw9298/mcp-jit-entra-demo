@@ -1,6 +1,6 @@
 # 10-minute demo script
 
-Setup done beforehand: app registration, `.env`, `az login` for the scope, `docker compose up -d`.
+Setup done beforehand: app registration, `scripts/up.sh` (container running).
 Open two windows: a terminal for Claude Code, and a browser on `http://localhost:8000/jit`.
 
 ## 1. Identity (OAuth 2.0)
@@ -18,8 +18,9 @@ Shows the 401 + `resource_metadata` challenge without a token, and the tool list
 ## 2. Start Claude Code
 
 ```bash
-scripts/claude-jit.sh
+claude        # in the repo; .mcp.json points at http://localhost:8000/mcp
 ```
+`/mcp` → jit-mcp → **Authenticate** → Microsoft sign-in in the browser → back in Claude Code.
 Prompt: **"Who am I on jit-mcp?"** → `whoami` returns your name and object ID from the token.
 
 ## 3. Read-only and low-risk actions just work

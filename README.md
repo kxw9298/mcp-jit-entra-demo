@@ -69,8 +69,9 @@ More detail: [docs/architecture.md](docs/architecture.md).
 | `app/server.py` | MCP server (Streamable HTTP, MCP Python SDK 2.x) and its tools |
 | `app/web.py` | Approval page with Entra sign-in (public client, auth code + PKCE, no secret) |
 | `policy.yaml` | Which tools need JIT, grant length, argument binding, approval mode |
-| `scripts/` | Create the Entra app, get a token, start Claude Code, smoke test |
-| `tests/` | 22 tests against a mock Entra ID, end to end over real HTTP |
+| `app/oauth_proxy.py` | OAuth authorization server for MCP clients, proxying sign-in to Entra |
+| `scripts/` | Create the Entra app, start the container, smoke test, CLI token helpers |
+| `tests/` | 24 tests against a mock Entra ID, end to end over real HTTP, including the Claude Code sign-in |
 
 Tools exposed to the agent:
 
@@ -84,48 +85,38 @@ Tools exposed to the agent:
 
 The "infrastructure" is a fake inventory in SQLite, so the demo is safe to run anywhere.
 
-## Quick start (macOS)
+## Quick start
 
-Needs Docker Desktop, the Azure CLI (`brew install azure-cli`), Claude Code, and an Entra tenant
-(the free tier is enough; your Azure subscription's "Default Directory" works).
+Needs Docker and Claude Code. One Entra app registration (see [docs/entra-setup.md](docs/entra-setup.md);
+`scripts/create-entra-app.sh` does it with the Azure CLI).
 
 ```bash
-git clone https://github.com/kxw9298/mcp-jit-entra-demo.git
-cd mcp-jit-entra-demo
-
-# 1. Entra app registration + .env (or do it in the portal: docs/entra-setup.md)
-az login --allow-no-subscriptions
-scripts/create-entra-app.sh
-
-# 2. Sign in for the MCP API scope (prints the exact command if needed)
-source .env
-az login --tenant "$ENTRA_TENANT_ID" --scope "api://$ENTRA_CLIENT_ID/mcp.access" --allow-no-subscriptions
-
-# 3. Build the image and start the container (writes .env on first run if you skipped step 1)
-scripts/up.sh            # or: scripts/up.sh <tenant-id> <client-id>
-scripts/smoke-test.sh
-
-# 4. Start Claude Code with a fresh token
-scripts/claude-jit.sh
+git clone https://github.com/kxw9298/mcp-jit-entra-demo.git && cd mcp-jit-entra-demo
+scripts/up.sh <tenant-id> <client-id>      # writes .env, builds the image, starts the container
+claude                                     # the repo's .mcp.json points Claude Code at http://localhost:8000/mcp
 ```
 
-In Claude Code, approve the project MCP server `jit-mcp` when asked, then run `/mcp` to check it is
-connected. Try: *"who am I on jit-mcp?"*, then *"restart payments in prod"*.
+In Claude Code run `/mcp`, pick **jit-mcp → Authenticate**. Your browser opens the Microsoft sign-in
+page; after you sign in it returns to Claude Code. Then try *"who am I on jit-mcp?"* and
+*"restart payments in prod"*.
+
+Outside this repo: `claude mcp add --transport http jit-mcp http://localhost:8000/mcp`.
 
 Step-by-step walkthrough for a live demo: [docs/demo-script.md](docs/demo-script.md).
 
-## Why the token comes from the Azure CLI
+## How Claude Code signs in
 
-Claude Code can do the MCP OAuth flow itself, and this server publishes the standard
-[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) protected-resource metadata for it. With Entra ID as the
-authorization server that flow currently fails with `AADSTS9010010`: the client sends the MCP
-server URL as the `resource` parameter, and Entra only accepts its own `api://` identifier there
-([open issue](https://claudeissues.com/issue/89438-mcp-oauth-against-microsoft-entra-id-aadsts9010010-on-connect-aadsts650053-on-re)).
+The MCP spec has the client send `resource=<MCP server URL>` (RFC 8707) to the authorization server.
+Entra ID only accepts its own `api://...` identifier there and fails with `AADSTS9010010`
+([issue](https://claudeissues.com/issue/89438-mcp-oauth-against-microsoft-entra-id-aadsts9010010-on-connect-aadsts650053-on-re)).
+So this server is Claude Code's authorization server and Entra does the actual login
+([app/oauth_proxy.py](app/oauth_proxy.py)):
 
-So the demo uses the Azure CLI as the OAuth client (still auth code + PKCE against Entra), and
-`scripts/claude-jit.sh` passes the token to Claude Code through `MCP_JIT_TOKEN`, which `.mcp.json`
-puts in the `Authorization` header. Tokens last about an hour: restart the script to refresh.
-Nothing on the server side changes when native OAuth starts working.
+1. Claude Code discovers the server's OAuth metadata, registers itself (dynamic client registration) and starts auth code + PKCE.
+2. The server sends the browser to Entra (its own auth code + PKCE, public client, no secret, no `resource` parameter).
+3. Entra redirects back to the server, which redeems the code and returns Claude Code to its loopback callback.
+4. Claude Code receives the **real Entra access token** (`aud=api://<app>`, `scp=mcp.access`); the server validates it exactly as before.
+   Entra's refresh token stays on the server; Claude Code gets an opaque, rotating handle.
 
 ## Policy
 

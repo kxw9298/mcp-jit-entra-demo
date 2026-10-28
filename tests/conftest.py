@@ -60,6 +60,7 @@ class MockEntra:
     kid: str = "test-key"
     signed_in_as: dict = field(default_factory=lambda: dict(ALICE))  # who "types their password" in the browser
     codes: dict = field(default_factory=dict)
+    refresh_tokens: dict = field(default_factory=dict)
     last_authorize: dict = field(default_factory=dict)
 
     @property
@@ -86,6 +87,22 @@ class MockEntra:
                        "preferred_username": user["preferred_username"]}
         return self.sign(claims, key)
 
+    def _token_response(self, user: dict, nonce: str | None, scope: str) -> dict:
+        now = int(time.time())
+        body = {"token_type": "Bearer", "expires_in": 3600}
+        id_claims = {"iss": self.v2_issuer, "aud": CLIENT_ID, "tid": TENANT, "iat": now, "nbf": now, "exp": now + 3600, **user}
+        if nonce:
+            id_claims["nonce"] = nonce
+        body["id_token"] = self.sign(id_claims)
+        if f"{APP_ID_URI}/mcp.access" in scope:
+            body["access_token"] = self.access_token(user, version="2.0")
+            body["scope"] = f"{APP_ID_URI}/mcp.access"
+        if "offline_access" in scope:
+            rt = secrets.token_urlsafe(16)
+            self.refresh_tokens[rt] = user
+            body["refresh_token"] = rt
+        return body
+
     def app(self) -> Starlette:
         async def jwks(request: Request):
             jwk = json.loads(RSAAlgorithm.to_jwk(self.key.public_key()))
@@ -100,17 +117,21 @@ class MockEntra:
 
         async def token(request: Request):
             form = dict(await request.form())
+            if form.get("grant_type") == "refresh_token":
+                user = self.refresh_tokens.pop(form.get("refresh_token", ""), None)
+                if not user:
+                    return JSONResponse({"error": "invalid_grant", "error_description": "bad refresh token"}, 400)
+                return JSONResponse(self._token_response(user, None, form.get("scope", "")))
             entry = self.codes.pop(form.get("code", ""), None)
             if not entry:
                 return JSONResponse({"error": "invalid_grant", "error_description": "bad code"}, 400)
             q, user = entry["q"], entry["user"]
+            if "resource" in q:  # what real Entra does when resource and scope disagree
+                return JSONResponse({"error": "invalid_target", "error_description": "AADSTS9010010"}, 400)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(form["code_verifier"].encode()).digest()).rstrip(b"=").decode()
             if challenge != q["code_challenge"] or form["redirect_uri"] != q["redirect_uri"] or form["client_id"] != q["client_id"]:
                 return JSONResponse({"error": "invalid_grant", "error_description": "PKCE/redirect mismatch"}, 400)
-            now = int(time.time())
-            id_token = self.sign({"iss": self.v2_issuer, "aud": CLIENT_ID, "tid": TENANT, "iat": now, "nbf": now,
-                                  "exp": now + 3600, "nonce": q["nonce"], **user})
-            return JSONResponse({"id_token": id_token, "token_type": "Bearer"})
+            return JSONResponse(self._token_response(user, q.get("nonce"), q.get("scope", "")))
 
         return Starlette(routes=[
             Route(f"/{TENANT}/discovery/v2.0/keys", jwks),

@@ -12,14 +12,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp
 
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcp.server.auth.settings import AuthSettings
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .config import Settings, load_settings
-from .entra import EntraTokenVerifier, EntraValidator, Principal
+from .entra import EntraValidator, Principal
 from .jit import JitEngine, JitRequired
+from .oauth_proxy import EntraProxyProvider
 from .policy import Policy, load_policy
 from .store import JitRequest, Store
 from .web import register_web_routes
@@ -77,18 +78,23 @@ def request_view(req: JitRequest) -> dict[str, Any]:
     }
 
 
-def build_mcp(settings: Settings, engine: JitEngine, store: Store, validator: EntraValidator) -> MCPServer:
+def build_mcp(settings: Settings, engine: JitEngine, store: Store, provider: EntraProxyProvider) -> MCPServer:
     mcp = MCPServer(
         name="jit-mcp",
         title="JIT-protected infrastructure (demo)",
         instructions=INSTRUCTIONS,
         version="0.1.0",
-        token_verifier=EntraTokenVerifier(validator),
+        # This server is the MCP client's OAuth authorization server (discovery, dynamic client
+        # registration, PKCE) and hands the actual sign-in to Entra ID. See app/oauth_proxy.py.
+        auth_server_provider=provider,
         auth=AuthSettings(
-            issuer_url=settings.v2_issuer,  # advertised in protected-resource metadata
+            issuer_url=settings.public_base_url,
             resource_server_url=settings.resource_url,
             required_scopes=[settings.full_scope],
-            validate_token_resource=False,  # EntraValidator checks the audience itself
+            client_registration_options=ClientRegistrationOptions(
+                enabled=True, valid_scopes=[settings.full_scope], default_scopes=[settings.full_scope]
+            ),
+            validate_token_resource=False,  # the Entra token's audience is checked in app/entra.py
         ),
     )
 
@@ -232,9 +238,10 @@ def build(settings: Settings | None = None, policy: Policy | None = None,
     store = Store(settings.db_path, clock=clock)
     engine = JitEngine(store, policy, settings.public_base_url)
     validator = EntraValidator(settings)
+    provider = EntraProxyProvider(settings, store, validator)
 
-    mcp = build_mcp(settings, engine, store, validator)
-    register_web_routes(mcp, settings, engine, store, validator)
+    mcp = build_mcp(settings, engine, store, provider)
+    register_web_routes(mcp, settings, engine, store, validator, provider)
 
     starlette_app = mcp.streamable_http_app(
         stateless_http=True,

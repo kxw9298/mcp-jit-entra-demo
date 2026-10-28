@@ -55,7 +55,7 @@ def _pkce() -> tuple[str, str]:
 
 
 def register_web_routes(mcp: "MCPServer", settings: Settings, engine: JitEngine, store: Store,
-                        validator: EntraValidator) -> None:
+                        validator: EntraValidator, proxy=None) -> None:
     policy = engine.policy
 
     def session_user(request: Request) -> Principal | None:
@@ -125,6 +125,9 @@ def register_web_routes(mcp: "MCPServer", settings: Settings, engine: JitEngine,
     @mcp.custom_route("/auth/callback", methods=["GET"])
     async def callback(request: Request) -> Response:
         qp = request.query_params
+        # The same redirect URI serves two flows: MCP client sign-in (proxied) and approval-page sign-in.
+        if proxy is not None and proxy.is_proxy_state(qp.get("state")):
+            return await proxy.handle_entra_callback(request)
         if "error" in qp:
             return message(request, "Sign-in failed", f"{qp.get('error')}: {qp.get('error_description', '')}", 400)
         oauth = request.session.pop("oauth", None)

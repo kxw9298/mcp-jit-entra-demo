@@ -2,10 +2,7 @@
   "mcpServers": {
     "jit-mcp": {
       "type": "http",
-      "url": "http://localhost:8000/mcp",
-      "headers": {
-        "Authorization": "Bearer ${MCP_JIT_TOKEN}"
-      }
+      "url": "http://localhost:8000/mcp"
     }
   }
 }
