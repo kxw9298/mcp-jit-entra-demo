@@ -11,6 +11,9 @@ with **Microsoft Entra ID** for sign-in, used from **Claude Code**.
 
 No standing access: a valid token alone can read, but cannot restart prod.
 
+In this demo the server stores grants itself (SQLite). In production they live in Entra PIM or
+SailPoint and the server only enforces them: see [docs/production.md](docs/production.md).
+
 ```
 > restart the payments service in prod, it's leaking memory
 
@@ -153,6 +156,7 @@ re-authentication before approval.
 - [docs/architecture.md](docs/architecture.md): components, token checks, JIT data model
 - [docs/entra-setup.md](docs/entra-setup.md): app registration in the portal, by hand
 - [docs/demo-script.md](docs/demo-script.md): a 10-minute live demo
+- [docs/production.md](docs/production.md): where grants live in production (Entra PIM, SailPoint) and how the server enforces them
 - [docs/security-notes.md](docs/security-notes.md): what this demo does and doesn't protect against, and how to harden it
 
 ## License
