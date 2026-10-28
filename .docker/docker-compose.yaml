@@ -1,0 +1,19 @@
+# Used by Docker Desktop Dev Environments before 4.13 (newer versions read compose-dev.yaml) (create from this Git repo URL): builds and starts the
+# server without a terminal. Docker Desktop can't read a local .env here, so the Entra IDs are inline.
+# They identify the demo's app registration; they are not secrets. Change them to your own tenant/app.
+# SESSION_SECRET is omitted on purpose: the server generates a random one at startup.
+services:
+  jit-mcp:
+    build: ..
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ENTRA_TENANT_ID: eb241c67-e72d-4862-ae41-7686706624c4
+      ENTRA_CLIENT_ID: 7c553d76-8ce4-4c57-b18b-99e0ef31920b
+      PUBLIC_BASE_URL: http://localhost:8000
+      LOG_LEVEL: INFO
+    volumes:
+      - jit-data:/data
+
+volumes:
+  jit-data:
