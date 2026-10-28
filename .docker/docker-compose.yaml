@@ -4,7 +4,7 @@
 # SESSION_SECRET is omitted on purpose: the server generates a random one at startup.
 services:
   jit-mcp:
-    build: ..
+    build: .   # Dev Environments resolve this from the repo root
     ports:
       - "127.0.0.1:8000:8000"
     environment:
