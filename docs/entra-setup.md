@@ -1,5 +1,21 @@
 # Entra ID setup
 
+## What is configured
+
+One app registration, `mcp-jit-demo`, single tenant. Nothing else in Entra (no groups, roles, PIM or Conditional Access).
+
+| Setting | Value | Used for |
+|---|---|---|
+| Platform | Public client / native (mobile & desktop) | Sign-in without a client secret (auth code + PKCE) |
+| Redirect URI | `http://localhost:8000/auth/callback` | Claude Code sign-in (proxied by the server) and approval-page sign-in |
+| Application ID URI | `api://<client-id>` | Audience (`aud`) of the access token |
+| Exposed scope | `mcp.access` (admins and users can consent) | Required scope (`scp`) on every MCP call |
+| Authorized client app | Azure CLI `04b07795-…` → `mcp.access` | Optional: lets `az` fetch a token for `scripts/smoke-test.sh` |
+| Client secret / API permissions | None | |
+| Enterprise app (service principal) | Created automatically | Lets tenant users sign in; holds their consent |
+
+On first sign-in each user consents once to `mcp.access` and offline access (refresh tokens).
+
 One app registration does both jobs: it is the **API** that Claude Code's token is for, and the
 **public client** the approval page signs users in with. No client secret is needed.
 
