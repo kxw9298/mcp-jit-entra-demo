@@ -1,0 +1,11 @@
+# Versions tested together (see tests/). mcp 2.x renamed FastMCP to MCPServer.
+mcp==2.3.0
+httpx2==2.13.1
+PyJWT[crypto]==2.15.0
+cryptography==50.0.1
+starlette==1.7.0
+uvicorn==0.54.0
+Jinja2==3.1.6
+itsdangerous==2.2.0
+python-multipart==0.0.32
+PyYAML==6.0.3

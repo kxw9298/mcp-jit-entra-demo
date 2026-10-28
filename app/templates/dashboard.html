@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+<h1>Just-in-time access</h1>
+<p class="sub">Requests from AI agents for privileged MCP tools. Approval mode: <strong>{{ "two-person" if policy.approval_mode == "two_person" else "self-approval with fresh sign-in" }}</strong>.</p>
+
+{% macro call(r) %}<span class="mono">{{ r.tool }}({% for k, v in r.bound.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endmacro %}
+
+<h2>Waiting for approval</h2>
+{% if pending %}
+<table>
+  <tr><th>Request</th><th>Action</th><th>Requested by</th><th>Requested</th></tr>
+  {% for r in pending %}
+  <tr><td><a href="/jit/{{ r.id }}">{{ r.id }}</a></td><td>{{ call(r) }}</td><td>{{ r.requester_name }}</td><td>{{ rel(r.created_at) }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<div class="empty">Nothing waiting.</div>{% endif %}
+
+<h2>Active grants</h2>
+{% if grants %}
+<table>
+  <tr><th>Request</th><th>Action</th><th>Holder</th><th>Approved by</th><th>Expires</th><th></th></tr>
+  {% for r in grants %}
+  <tr>
+    <td><a href="/jit/{{ r.id }}">{{ r.id }}</a></td><td>{{ call(r) }}</td><td>{{ r.requester_name }}</td>
+    <td>{{ r.decided_by_name }}</td><td>{{ rel(r.grant_expires_at) }}{% if r.single_use %} · single use{% endif %}</td>
+    <td><form method="post" action="/jit/{{ r.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Revoke</button></form></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<div class="empty">No standing access. Nobody holds a grant right now.</div>{% endif %}
+
+<h2>Recently closed</h2>
+{% if history %}
+<table>
+  <tr><th>Request</th><th>Action</th><th>Requested by</th><th>Status</th><th>Decided by</th></tr>
+  {% for r in history %}
+  <tr><td><a href="/jit/{{ r.id }}">{{ r.id }}</a></td><td>{{ call(r) }}</td><td>{{ r.requester_name }}</td>
+    <td><span class="badge s-{{ r.status }}">{{ r.status }}</span></td><td>{{ r.decided_by_name or "—" }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<div class="empty">None yet.</div>{% endif %}
+
+<h2>Audit log</h2>
+{% if audit %}
+<table>
+  <tr><th>When</th><th>Event</th><th>Actor</th><th>Request</th><th>Details</th></tr>
+  {% for e in audit %}
+  <tr><td class="muted">{{ e.ts | ts }}</td><td class="mono">{{ e.event }}</td><td>{{ e.actor_name or "—" }}</td>
+    <td>{% if e.request_id %}<a href="/jit/{{ e.request_id }}">{{ e.request_id }}</a>{% endif %}</td>
+    <td class="mono muted">{{ e.tool or "" }} {{ e.detail.args | tojson if e.detail.args else "" }}{% if e.detail.reason %} {{ e.detail.reason }}{% endif %}{% if e.detail.outcome %} → {{ e.detail.outcome }}{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<div class="empty">No events yet.</div>{% endif %}
+{% endblock %}

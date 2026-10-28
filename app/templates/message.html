@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="sub">{{ body }}</p>
+<p><a href="/jit">Back to approvals</a>{% if not user %} · <a href="/auth/login">Sign in</a>{% endif %}</p>
+{% endblock %}

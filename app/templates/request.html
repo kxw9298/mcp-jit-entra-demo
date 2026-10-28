@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ req.id }}{% endblock %}
+{% block content %}
+<h1>{{ req.id }} <span class="badge s-{{ req.status }}">{{ req.status }}</span></h1>
+<p class="sub">{{ req.requester_name }} asked an AI agent to run a privileged action. Approving grants access to exactly this action, for a limited time.</p>
+
+{% if flash == "approve" %}<p class="note ok">Approved. The agent can now retry the call.</p>{% endif %}
+{% if flash == "deny" %}<p class="note warn">Denied. The agent will not be able to run this action.</p>{% endif %}
+{% if flash == "revoke" %}<p class="note warn">Revoked. Further calls will need a new approval.</p>{% endif %}
+
+<div class="card">
+  <dl class="kv">
+    <dt>Requested by</dt><dd>{{ req.requester_name }} <span class="muted">{{ req.requester_username }}</span><br><span class="mono muted">{{ req.requester_oid }}</span></dd>
+    <dt>Action</dt><dd><span class="args">{{ req.tool }}({% for k, v in req.bound.items() %}{{ k }}={{ v | tojson }}{% if not loop.last %}, {% endif %}{% endfor %})</span></dd>
+    {% if req.args != req.bound %}<dt>All arguments</dt><dd><span class="args">{{ req.args | tojson }}</span></dd>{% endif %}
+    <dt>Justification</dt><dd>{{ req.justification or "—" }}</dd>
+    <dt>Grant length</dt><dd>{{ (req.ttl_seconds / 60) | round(1) }} min after approval{% if req.single_use %}, single use{% endif %}</dd>
+    <dt>Requested</dt><dd>{{ req.created_at | ts }} <span class="muted">({{ rel(req.created_at) }})</span></dd>
+    {% if req.status == "pending" %}
+    <dt>Request expires</dt><dd>{{ req.request_expires_at | ts }} <span class="muted">({{ rel(req.request_expires_at) }})</span></dd>
+    {% endif %}
+    {% if req.decided_by_name %}
+    <dt>Decided by</dt><dd>{{ req.decided_by_name }} · {{ req.decided_at | ts }}</dd>
+    {% endif %}
+    {% if req.grant_expires_at %}
+    <dt>{% if req.status == "approved" %}Grant expires{% else %}Grant ended{% endif %}</dt>
+    <dd>{{ req.grant_expires_at | ts }} <span class="muted">({{ rel(req.grant_expires_at) }})</span></dd>
+    {% endif %}
+    <dt>Times used</dt><dd>{{ req.use_count }}</dd>
+    <dt>Approval rule</dt><dd>{% if policy.approval_mode == "two_person" %}Two-person: someone other than the requester must approve{% else %}Self-approval allowed after a fresh sign-in{% endif %}</dd>
+  </dl>
+
+  {% if req.status == "pending" %}
+    {% if blocked %}
+      <p class="note warn" style="margin-top:20px">{{ blocked }}</p>
+      <div class="actions">
+        <form method="post" action="/jit/{{ req.id }}/deny"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Deny</button></form>
+        <a href="/auth/logout">Sign in as someone else</a>
+      </div>
+    {% else %}
+      <div class="actions">
+        <form method="post" action="/jit/{{ req.id }}/approve"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Approve as {{ user.name }}</button></form>
+        <form method="post" action="/jit/{{ req.id }}/deny"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Deny</button></form>
+        {% if reauth_needed %}<span class="muted">You'll be asked to sign in again before the approval is recorded.</span>{% endif %}
+      </div>
+    {% endif %}
+  {% elif req.status == "approved" %}
+    <div class="actions">
+      <form method="post" action="/jit/{{ req.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Revoke now</button></form>
+    </div>
+  {% endif %}
+</div>
+<p style="margin-top:20px"><a href="/jit">All requests and audit log</a></p>
+{% endblock %}

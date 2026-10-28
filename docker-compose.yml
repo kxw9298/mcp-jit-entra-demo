@@ -1,0 +1,15 @@
+services:
+  jit-mcp:
+    build: .
+    image: mcp-jit-entra-demo:local
+    container_name: jit-mcp
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"     # only reachable from this machine
+    volumes:
+      - jit-data:/data              # JIT requests, grants and audit log (SQLite)
+      - ./policy.yaml:/app/policy.yaml:ro
+    restart: unless-stopped
+
+volumes:
+  jit-data:

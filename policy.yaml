@@ -1,0 +1,28 @@
+# Just-in-time (JIT) policy for the MCP tools.
+# Tools not listed here (whoami, list_services, get_service_status, ...) run without JIT,
+# but still require a valid Entra ID token with the mcp.access scope.
+
+# self       = the requester may approve their own request, after a fresh Entra sign-in
+# two_person = someone other than the requester must approve
+approval_mode: self
+
+# Optional allow-list of approver usernames/emails. Empty = any user in your tenant.
+approvers: []
+
+request_expiry_minutes: 30   # a pending request that nobody acts on expires
+reauth_minutes: 10           # approver must have signed in within this window, or sign in again
+
+tools:
+  restart_service:
+    jit_when: { env: [prod] }      # dev restarts run freely; prod needs approval
+    ttl_minutes: 15
+    bind_args: [service, env]      # the grant covers this service + env only
+  scale_service:
+    jit_when: { env: [prod] }
+    ttl_minutes: 10
+    bind_args: [service, env, replicas]
+  rotate_secret:
+    jit_when: always
+    ttl_minutes: 5
+    bind_args: [service, env]
+    single_use: true               # one approval = one rotation
