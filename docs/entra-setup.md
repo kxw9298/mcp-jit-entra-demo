@@ -26,7 +26,7 @@ One app registration does both jobs: it is the **API** that Claude Code's token 
 4. Copy `.env.example` to `.env` and fill in `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, and a random
    `SESSION_SECRET` (`openssl rand -base64 32`).
 
-## Get a token
+## Get a token from the CLI (optional, for scripts/smoke-test.sh)
 
 ```bash
 source .env
@@ -51,4 +51,5 @@ in `approvers:` in `policy.yaml`.
 | `AADSTS500011` resource principal not found | The App ID URI isn't set, or the service principal wasn't created (`az ad sp create --id <client-id>`). |
 | `AADSTS50011` redirect URI mismatch on the approval page | Redirect URI must be exactly `PUBLIC_BASE_URL/auth/callback` under *Mobile and desktop*. |
 | `AADSTS7000218` client_secret required | The redirect URI was added under *Web* instead of *Mobile and desktop applications*. |
-| MCP server returns 401 | Token expired (≈1 h): restart `scripts/claude-jit.sh`. Check `docker compose logs` for "rejected bearer token". |
+| MCP server returns 401 | Run `/mcp` → jit-mcp → Authenticate again. Check `docker compose logs` for "rejected bearer token". |
+| Consent screen on first sign-in | Expected: it asks for `mcp.access` and offline access (for refresh). Accept once. |

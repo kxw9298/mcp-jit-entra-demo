@@ -35,26 +35,21 @@ sequenceDiagram
     autonumber
     actor U as You
     participant CC as Claude Code
-    participant AZ as Azure CLI
-    participant E as Entra ID
     participant M as MCP server (Docker)
-    participant W as Approval page (same server)
+    participant E as Entra ID
 
-    U->>AZ: az login (once)
-    AZ->>E: OAuth 2.0 auth code + PKCE
-    E-->>AZ: access token (aud=api://<app>, scp=mcp.access)
-    U->>CC: scripts/claude-jit.sh
+    U->>CC: /mcp → Authenticate
+    CC->>M: discover OAuth metadata, register, authorize (PKCE)
+    M->>E: redirect browser to Microsoft sign-in (PKCE)
+    U->>E: sign in
+    E-->>M: code → Entra access token (aud=api://<app>, scp=mcp.access)
+    M-->>CC: back to Claude Code with the token
     CC->>M: tools/call restart_service(prod) + Bearer token
-    M->>M: validate token (JWKS, iss, tid, aud, scp)
-    M->>M: JIT policy: prod restart needs a grant → none
+    M->>M: validate token, JIT policy: no grant
     M-->>CC: error: JIT-4F2A9C pending + approval link
-    U->>W: open link
-    W->>E: sign in (auth code + PKCE)
-    E-->>W: ID token
-    U->>W: Approve (re-auth if sign-in is stale)
-    W->>W: grant: user + tool + {service, env}, 15 min
+    U->>M: open link, sign in, Approve
+    M->>M: grant: user + tool + {service, env}, 15 min
     CC->>M: retry restart_service(prod)
-    M->>M: grant found → run, audit
     M-->>CC: restarted
 ```
 
